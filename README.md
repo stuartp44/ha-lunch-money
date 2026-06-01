@@ -59,3 +59,8 @@ It uses Lunch Money API v2 and the official async Python client (`lunchmoney-pyt
    3. `feat!:` or `BREAKING CHANGE:` creates a major release.
    4. Non-user-facing changes like `docs:` or `chore:` do not trigger a release.
 3. Pull request titles should follow the same semantic format so release history stays predictable.
+
+   ## Validation
+
+   1. The repository runs `hassfest` validation on push, pull request, and a nightly schedule.
+   2. This keeps the Home Assistant manifest and integration metadata aligned with HACS/Home Assistant expectations.
