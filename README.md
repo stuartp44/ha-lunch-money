@@ -49,3 +49,13 @@ It uses Lunch Money API v2 and the official async Python client (`lunchmoney-pyt
 
 1. A valid Lunch Money developer API token.
 2. Home Assistant with internet access to `api.lunchmoney.dev`.
+
+## Releases
+
+1. GitHub releases are created automatically from the `main` branch with semantic-release.
+2. Release versions follow conventional commits and semantic versioning:
+   1. `feat:` creates a minor release.
+   2. `fix:` creates a patch release.
+   3. `feat!:` or `BREAKING CHANGE:` creates a major release.
+   4. Non-user-facing changes like `docs:` or `chore:` do not trigger a release.
+3. Pull request titles should follow the same semantic format so release history stays predictable.
