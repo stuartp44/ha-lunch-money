@@ -1,17 +1,17 @@
 {
     "domain": "lunch_money",
     "name": "Lunch Money",
-    "version": "0.1.0",
-    "documentation": "https://github.com/nprail/ha-lunch-money",
-    "issue_tracker": "https://github.com/nprail/ha-lunch-money/issues",
-    "requirements": [
-        "lunchmoney-python-async==2.25.0"
-    ],
-    "dependencies": [],
     "codeowners": [
         "@nprail"
     ],
     "config_flow": true,
+    "dependencies": [],
+    "documentation": "https://github.com/nprail/ha-lunch-money",
+    "integration_type": "service",
+    "issue_tracker": "https://github.com/nprail/ha-lunch-money/issues",
     "iot_class": "cloud_polling",
-    "integration_type": "service"
+    "requirements": [
+        "lunchmoney-python-async==2.25.0"
+    ],
+    "version": "0.1.0"
 }
