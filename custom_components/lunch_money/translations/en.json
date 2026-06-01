@@ -1,5 +1,10 @@
 {
   "config": {
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid API key",
+      "unknown": "Unexpected error"
+    },
     "step": {
       "user": {
         "title": "Connect to Lunch Money",

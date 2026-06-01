@@ -1,6 +1,22 @@
 # Lunch Money Home Assistant Integration
 
-This custom integration exposes your Lunch Money asset types (e.g., Cash, Credit, etc.) as Home Assistant sensor entities.
+This custom integration exposes your Lunch Money account types (e.g., Cash, Credit, etc.) as Home Assistant sensor entities.
+
+It uses Lunch Money API v2 and the official async Python client (`lunchmoney-python-async`).
+
+## Notes
+
+1. Lunch Money v2 is currently marked as open alpha by Lunch Money.
+2. This integration groups balances by account type using manual accounts and Plaid accounts.
+3. Accounts in inactive/error-like states are excluded from totals.
+
+## Sensors
+
+1. Balance by account type (for example: Cash, Credit, Investment).
+2. Transactions Awaiting Review.
+3. Pending Transactions.
+4. Transactions Delete Pending (requires manual intervention).
+5. Uncategorized Transactions (This Month).
 
 ## Installation
 
@@ -21,3 +37,8 @@ This custom integration exposes your Lunch Money asset types (e.g., Cash, Credit
 2. Restart Home Assistant.
 3. In Home Assistant UI, go to **Settings > Devices & Services > Add Integration** and search for "Lunch Money".
 4. Enter your Lunch Money API key when prompted.
+
+## Requirements
+
+1. A valid Lunch Money developer API token.
+2. Home Assistant with internet access to `api.lunchmoney.dev`.
