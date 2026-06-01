@@ -57,6 +57,25 @@ def _status_value(value: Any) -> str:
         value = value.value
     return str(value or "").strip().lower().replace("_", " ")
 
+
+def _month_bounds(target_date: date) -> tuple[date, date]:
+    start_date = target_date.replace(day=1)
+    next_month = (start_date.replace(day=28) + timedelta(days=4)).replace(day=1)
+    end_date = next_month - timedelta(days=1)
+    return start_date, end_date
+
+
+def _activity_total(breakdown: Any) -> float:
+    if breakdown is None:
+        return 0.0
+
+    return (
+        _coerce_float(getattr(breakdown, "other_activity", 0))
+        + _coerce_float(getattr(breakdown, "recurring_activity", 0))
+        + _coerce_float(getattr(breakdown, "uncategorized", 0))
+        + _coerce_float(getattr(breakdown, "uncategorized_recurring", 0))
+    )
+
 class LunchMoneyAPI:
     def __init__(self, api_key):
         self._configuration = lunchmoney.Configuration(access_token=api_key)
@@ -137,11 +156,9 @@ class LunchMoneyAPI:
 
         return total
 
-    async def _get_current_month_uncategorized_count(self) -> int:
+    async def _get_current_month_summary_metrics(self) -> dict[str, float]:
         today = date.today()
-        start_date = today.replace(day=1)
-        next_month = (start_date.replace(day=28) + timedelta(days=4)).replace(day=1)
-        end_date = next_month - timedelta(days=1)
+        start_date, end_date = _month_bounds(today)
 
         summary = await self._summary.get_budget_summary(
             start_date=start_date,
@@ -154,7 +171,52 @@ class LunchMoneyAPI:
         outflow = getattr(totals, "outflow", None)
         inflow_uncategorized = int(getattr(inflow, "uncategorized_count", 0) or 0)
         outflow_uncategorized = int(getattr(outflow, "uncategorized_count", 0) or 0)
-        return inflow_uncategorized + outflow_uncategorized
+
+        inflow_total = _activity_total(inflow)
+        outflow_total = _activity_total(outflow)
+        net_income = inflow_total - outflow_total
+        savings_rate = (net_income / inflow_total * 100.0) if inflow_total > 0 else 0.0
+
+        return {
+            "uncategorized_transactions_month": inflow_uncategorized + outflow_uncategorized,
+            "net_income_month": round(net_income, 2),
+            "savings_rate_month": round(savings_rate, 2),
+        }
+
+    async def _get_last_transaction_metric(self) -> dict[str, Any]:
+        response = await self._transactions.get_all_transactions(
+            limit=1,
+            include_pending=True,
+        )
+        transactions = response.transactions or []
+        if not transactions:
+            return {
+                "state": "No transactions",
+                "attributes": {},
+            }
+
+        tx = transactions[0]
+        date_value = getattr(tx, "var_date", None)
+        date_text = date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value)
+        payee = getattr(tx, "payee", None) or "Unknown Payee"
+        amount_base = _coerce_float(getattr(tx, "to_base", getattr(tx, "amount", 0)))
+
+        return {
+            "state": payee,
+            "attributes": {
+                "id": getattr(tx, "id", None),
+                "date": date_text,
+                "amount": _coerce_float(getattr(tx, "amount", 0)),
+                "to_base": amount_base,
+                "currency": str(getattr(tx, "currency", "")),
+                "status": getattr(tx, "status", None),
+                "is_pending": getattr(tx, "is_pending", None),
+                "category_id": getattr(tx, "category_id", None),
+                "manual_account_id": getattr(tx, "manual_account_id", None),
+                "plaid_account_id": getattr(tx, "plaid_account_id", None),
+                "updated_at": str(getattr(tx, "updated_at", "")),
+            },
+        }
 
     async def async_get_balances(self):
         """Fetch and group balances from manual and Plaid accounts in v2."""
@@ -183,7 +245,7 @@ class LunchMoneyAPI:
         _LOGGER.debug("Fetched %s grouped Lunch Money account types", len(grouped))
         return grouped
 
-    async def async_get_metrics(self) -> dict[str, int]:
+    async def async_get_metrics(self) -> dict[str, float]:
         """Fetch actionable transaction metrics from v2 endpoints."""
         awaiting_review = await self._count_transactions(
             status="unreviewed",
@@ -192,13 +254,17 @@ class LunchMoneyAPI:
         )
         pending = await self._count_transactions(is_pending=True)
         delete_pending = await self._count_transactions(status="delete_pending")
-        uncategorized_month = await self._get_current_month_uncategorized_count()
+        month_summary_metrics = await self._get_current_month_summary_metrics()
+        last_transaction = await self._get_last_transaction_metric()
 
         return {
             "transactions_awaiting_review": awaiting_review,
             "transactions_pending": pending,
             "transactions_delete_pending": delete_pending,
-            "uncategorized_transactions_month": uncategorized_month,
+            "uncategorized_transactions_month": month_summary_metrics["uncategorized_transactions_month"],
+            "net_income_month": month_summary_metrics["net_income_month"],
+            "savings_rate_month": month_summary_metrics["savings_rate_month"],
+            "last_transaction": last_transaction,
         }
 
     async def async_get_dashboard_data(self) -> dict[str, dict[str, Any]]:

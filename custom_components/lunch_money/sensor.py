@@ -4,7 +4,7 @@ Sensor platform for Lunch Money integration.
 import logging
 from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import CURRENCY_DOLLAR
+from homeassistant.const import CURRENCY_DOLLAR, PERCENTAGE
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from .const import DOMAIN
 
@@ -12,22 +12,52 @@ _LOGGER = logging.getLogger(__name__)
 
 METRIC_SENSORS = {
     "transactions_awaiting_review": {
-        "name": "Lunch Money Transactions Awaiting Review",
+        "name": "Transactions Awaiting Review",
         "icon": "mdi:clipboard-alert-outline",
     },
     "transactions_pending": {
-        "name": "Lunch Money Pending Transactions",
+        "name": "Pending Transactions",
         "icon": "mdi:clock-outline",
     },
     "transactions_delete_pending": {
-        "name": "Lunch Money Transactions Delete Pending",
+        "name": "Transactions Delete Pending",
         "icon": "mdi:alert-outline",
     },
     "uncategorized_transactions_month": {
-        "name": "Lunch Money Uncategorized Transactions (This Month)",
+        "name": "Uncategorized Transactions (This Month)",
         "icon": "mdi:tag-off-outline",
     },
+    "net_income_month": {
+        "name": "Net Income (This Month)",
+        "icon": "mdi:cash-plus",
+        "unit": CURRENCY_DOLLAR,
+    },
+    "savings_rate_month": {
+        "name": "Savings Rate (This Month)",
+        "icon": "mdi:percent-outline",
+        "unit": PERCENTAGE,
+    },
+    "last_transaction": {
+        "name": "Last Transaction",
+        "icon": "mdi:bank-transfer",
+    },
 }
+
+BALANCE_TYPE_ICONS = {
+    "cash": "mdi:cash-multiple",
+    "credit": "mdi:credit-card-outline",
+    "loan": "mdi:hand-coin-outline",
+    "investment": "mdi:chart-line",
+    "brokerage": "mdi:finance",
+    "retirement": "mdi:bank-outline",
+    "real estate": "mdi:home-city-outline",
+    "cryptocurrency": "mdi:bitcoin",
+    "other": "mdi:wallet-outline",
+}
+
+
+def _balance_icon(type_name: str) -> str:
+    return BALANCE_TYPE_ICONS.get(type_name.strip().lower(), "mdi:wallet-outline")
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     # Not used with config entries
@@ -65,9 +95,10 @@ class LunchMoneyBalanceSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, type_name):
         super().__init__(coordinator)
         self.type_name = type_name
-        self._attr_name = f"Lunch Money {type_name}"
+        self._attr_name = type_name
         self._attr_unique_id = f"lunch_money_{type_name.lower().replace(' ', '_')}"
         self._attr_native_unit_of_measurement = CURRENCY_DOLLAR
+        self._attr_icon = _balance_icon(type_name)
 
     @property
     def native_value(self):
@@ -82,7 +113,22 @@ class LunchMoneyMetricSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = metadata["name"]
         self._attr_unique_id = f"lunch_money_{metric_key}"
         self._attr_icon = metadata["icon"]
+        unit = metadata.get("unit")
+        if unit:
+            self._attr_native_unit_of_measurement = unit
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("metrics", {}).get(self.metric_key)
+        payload = self.coordinator.data.get("metrics", {}).get(self.metric_key)
+        if isinstance(payload, dict) and "state" in payload:
+            return payload.get("state")
+        return payload
+
+    @property
+    def extra_state_attributes(self):
+        payload = self.coordinator.data.get("metrics", {}).get(self.metric_key)
+        if isinstance(payload, dict):
+            attributes = payload.get("attributes")
+            if isinstance(attributes, dict):
+                return attributes
+        return None

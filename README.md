@@ -19,6 +19,10 @@ It uses Lunch Money API v2 and the official async Python client (`lunchmoney-pyt
 3. Pending Transactions.
 4. Transactions Delete Pending (requires manual intervention).
 5. Uncategorized Transactions (This Month).
+6. Net Income (This Month).
+7. Savings Rate (This Month).
+8. Last Transaction.
+9. Balance sensors use type-based icons (for example, Cash uses a cash icon).
 
 ## Installation
 
