@@ -4,7 +4,7 @@ Sensor platform for Lunch Money integration.
 import logging
 from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import CURRENCY_DOLLAR, PERCENTAGE
+from homeassistant.const import PERCENTAGE
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
 from .const import DOMAIN
 
@@ -30,7 +30,6 @@ METRIC_SENSORS = {
     "net_income_month": {
         "name": "Net Income (This Month)",
         "icon": "mdi:cash-plus",
-        "unit": CURRENCY_DOLLAR,
     },
     "savings_rate_month": {
         "name": "Savings Rate (This Month)",
@@ -58,6 +57,10 @@ BALANCE_TYPE_ICONS = {
 
 def _balance_icon(type_name: str) -> str:
     return BALANCE_TYPE_ICONS.get(type_name.strip().lower(), "mdi:wallet-outline")
+
+
+def _currency_unit(coordinator):
+    return coordinator.data.get("currency")
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     # Not used with config entries
@@ -97,7 +100,7 @@ class LunchMoneyBalanceSensor(CoordinatorEntity, SensorEntity):
         self.type_name = type_name
         self._attr_name = type_name
         self._attr_unique_id = f"lunch_money_{type_name.lower().replace(' ', '_')}"
-        self._attr_native_unit_of_measurement = CURRENCY_DOLLAR
+        self._attr_native_unit_of_measurement = _currency_unit(coordinator)
         self._attr_icon = _balance_icon(type_name)
 
     @property
@@ -116,6 +119,10 @@ class LunchMoneyMetricSensor(CoordinatorEntity, SensorEntity):
         unit = metadata.get("unit")
         if unit:
             self._attr_native_unit_of_measurement = unit
+        elif metric_key == "last_transaction":
+            self._attr_native_unit_of_measurement = _currency_unit(coordinator)
+        elif metric_key == "net_income_month":
+            self._attr_native_unit_of_measurement = _currency_unit(coordinator)
 
     @property
     def native_value(self):

@@ -92,6 +92,13 @@ class LunchMoneyAPI:
     async def async_get_me(self):
         return await self._me.get_me()
 
+    async def async_get_currency(self) -> str:
+        user = await self.async_get_me()
+        currency = getattr(user, "primary_currency", None)
+        if hasattr(currency, "value"):
+            currency = currency.value
+        return str(currency or "USD").upper()
+
     def _decode_raw_json(self, response: Any) -> dict[str, Any]:
         payload = getattr(response, "data", response)
 
@@ -106,33 +113,26 @@ class LunchMoneyAPI:
 
         return {}
 
-    async def _get_manual_accounts_safe(self) -> list[Any]:
+    async def _get_accounts_safe(
+        self,
+        fetch_typed,
+        fetch_raw,
+        payload_key: str,
+        source_name: str,
+    ) -> list[Any]:
         try:
-            response = await self._manual_accounts.get_all_manual_accounts()
-            return response.manual_accounts or []
+            response = await fetch_typed()
+            return getattr(response, payload_key) or []
         except Exception as err:
             _LOGGER.warning(
-                "Falling back to raw manual account parsing due to schema mismatch: %s",
+                "Falling back to raw %s parsing due to schema mismatch: %s",
+                source_name,
                 err,
             )
-            raw_response = await self._manual_accounts.get_all_manual_accounts_without_preload_content()
+            raw_response = await fetch_raw()
             payload = self._decode_raw_json(raw_response)
-            manual_accounts = payload.get("manual_accounts")
-            return manual_accounts if isinstance(manual_accounts, list) else []
-
-    async def _get_plaid_accounts_safe(self) -> list[Any]:
-        try:
-            response = await self._plaid_accounts.get_all_plaid_accounts()
-            return response.plaid_accounts or []
-        except Exception as err:
-            _LOGGER.warning(
-                "Falling back to raw plaid account parsing due to schema mismatch: %s",
-                err,
-            )
-            raw_response = await self._plaid_accounts.get_all_plaid_accounts_without_preload_content()
-            payload = self._decode_raw_json(raw_response)
-            plaid_accounts = payload.get("plaid_accounts")
-            return plaid_accounts if isinstance(plaid_accounts, list) else []
+            items = payload.get(payload_key)
+            return items if isinstance(items, list) else []
 
     async def _count_transactions(self, **filters: Any) -> int:
         total = 0
@@ -222,7 +222,12 @@ class LunchMoneyAPI:
         """Fetch and group balances from manual and Plaid accounts in v2."""
         grouped = {}
 
-        manual_accounts = await self._get_manual_accounts_safe()
+        manual_accounts = await self._get_accounts_safe(
+            self._manual_accounts.get_all_manual_accounts,
+            self._manual_accounts.get_all_manual_accounts_without_preload_content,
+            "manual_accounts",
+            "manual account",
+        )
         for account in manual_accounts:
             if _field_value(account, "closed_on", None):
                 continue
@@ -233,7 +238,12 @@ class LunchMoneyAPI:
             balance = _coerce_float(_field_value(account, "to_base", 0))
             grouped[type_name] = grouped.get(type_name, 0.0) + balance
 
-        plaid_accounts = await self._get_plaid_accounts_safe()
+        plaid_accounts = await self._get_accounts_safe(
+            self._plaid_accounts.get_all_plaid_accounts,
+            self._plaid_accounts.get_all_plaid_accounts_without_preload_content,
+            "plaid_accounts",
+            "plaid account",
+        )
         for account in plaid_accounts:
             if _status_value(_field_value(account, "status", "")) in _EXCLUDED_STATUSES:
                 continue
@@ -269,8 +279,9 @@ class LunchMoneyAPI:
 
     async def async_get_dashboard_data(self) -> dict[str, dict[str, Any]]:
         """Fetch all sensor data used by the integration."""
-        balances, metrics = await asyncio.gather(
+        currency, balances, metrics = await asyncio.gather(
+            self.async_get_currency(),
             self.async_get_balances(),
             self.async_get_metrics(),
         )
-        return {"balances": balances, "metrics": metrics}
+        return {"currency": currency, "balances": balances, "metrics": metrics}
