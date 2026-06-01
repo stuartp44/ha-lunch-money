@@ -4,6 +4,7 @@ Lunch Money API client for Home Assistant integration.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import date, timedelta
 from typing import Any
@@ -27,6 +28,12 @@ _EXCLUDED_STATUSES = {
     "revoked",
     "error",
 }
+
+
+def _field_value(item: Any, key: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
 
 
 def _coerce_float(value: Any) -> float:
@@ -65,6 +72,48 @@ class LunchMoneyAPI:
 
     async def async_get_me(self):
         return await self._me.get_me()
+
+    def _decode_raw_json(self, response: Any) -> dict[str, Any]:
+        payload = getattr(response, "data", response)
+
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode("utf-8")
+
+        if isinstance(payload, str):
+            return json.loads(payload) if payload else {}
+
+        if isinstance(payload, dict):
+            return payload
+
+        return {}
+
+    async def _get_manual_accounts_safe(self) -> list[Any]:
+        try:
+            response = await self._manual_accounts.get_all_manual_accounts()
+            return response.manual_accounts or []
+        except Exception as err:
+            _LOGGER.warning(
+                "Falling back to raw manual account parsing due to schema mismatch: %s",
+                err,
+            )
+            raw_response = await self._manual_accounts.get_all_manual_accounts_without_preload_content()
+            payload = self._decode_raw_json(raw_response)
+            manual_accounts = payload.get("manual_accounts")
+            return manual_accounts if isinstance(manual_accounts, list) else []
+
+    async def _get_plaid_accounts_safe(self) -> list[Any]:
+        try:
+            response = await self._plaid_accounts.get_all_plaid_accounts()
+            return response.plaid_accounts or []
+        except Exception as err:
+            _LOGGER.warning(
+                "Falling back to raw plaid account parsing due to schema mismatch: %s",
+                err,
+            )
+            raw_response = await self._plaid_accounts.get_all_plaid_accounts_without_preload_content()
+            payload = self._decode_raw_json(raw_response)
+            plaid_accounts = payload.get("plaid_accounts")
+            return plaid_accounts if isinstance(plaid_accounts, list) else []
 
     async def _count_transactions(self, **filters: Any) -> int:
         total = 0
@@ -111,24 +160,24 @@ class LunchMoneyAPI:
         """Fetch and group balances from manual and Plaid accounts in v2."""
         grouped = {}
 
-        manual_response = await self._manual_accounts.get_all_manual_accounts()
-        for account in manual_response.manual_accounts or []:
-            if getattr(account, "closed_on", None):
+        manual_accounts = await self._get_manual_accounts_safe()
+        for account in manual_accounts:
+            if _field_value(account, "closed_on", None):
                 continue
-            if _status_value(getattr(account, "status", "")) in _EXCLUDED_STATUSES:
+            if _status_value(_field_value(account, "status", "")) in _EXCLUDED_STATUSES:
                 continue
 
-            type_name = _normalize_type_name(getattr(account, "type", "other"))
-            balance = _coerce_float(getattr(account, "to_base", 0))
+            type_name = _normalize_type_name(_field_value(account, "type", "other"))
+            balance = _coerce_float(_field_value(account, "to_base", 0))
             grouped[type_name] = grouped.get(type_name, 0.0) + balance
 
-        plaid_response = await self._plaid_accounts.get_all_plaid_accounts()
-        for account in plaid_response.plaid_accounts or []:
-            if _status_value(getattr(account, "status", "")) in _EXCLUDED_STATUSES:
+        plaid_accounts = await self._get_plaid_accounts_safe()
+        for account in plaid_accounts:
+            if _status_value(_field_value(account, "status", "")) in _EXCLUDED_STATUSES:
                 continue
 
-            type_name = _normalize_type_name(getattr(account, "type", "other"))
-            balance = _coerce_float(getattr(account, "to_base", 0))
+            type_name = _normalize_type_name(_field_value(account, "type", "other"))
+            balance = _coerce_float(_field_value(account, "to_base", 0))
             grouped[type_name] = grouped.get(type_name, 0.0) + balance
 
         _LOGGER.debug("Fetched %s grouped Lunch Money account types", len(grouped))

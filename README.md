@@ -9,6 +9,8 @@ It uses Lunch Money API v2 and the official async Python client (`lunchmoney-pyt
 1. Lunch Money v2 is currently marked as open alpha by Lunch Money.
 2. This integration groups balances by account type using manual accounts and Plaid accounts.
 3. Accounts in inactive/error-like states are excluded from totals.
+4. Integration startup performs an API readiness check and raises `ConfigEntryNotReady` before platform forwarding if Lunch Money is temporarily unavailable.
+5. Manual/Plaid account parsing includes a fallback path for schema-inconsistent records returned by the API.
 
 ## Sensors
 
