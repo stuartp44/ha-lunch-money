@@ -119,8 +119,6 @@ class LunchMoneyMetricSensor(CoordinatorEntity, SensorEntity):
         unit = metadata.get("unit")
         if unit:
             self._attr_native_unit_of_measurement = unit
-        elif metric_key == "last_transaction":
-            self._attr_native_unit_of_measurement = _currency_unit(coordinator)
         elif metric_key == "net_income_month":
             self._attr_native_unit_of_measurement = _currency_unit(coordinator)
 

@@ -23,7 +23,8 @@ It uses Lunch Money API v2 and the official async Python client (`lunchmoney-pyt
 7. Savings Rate (This Month).
 8. Last Transaction.
 9. Balance sensors use type-based icons (for example, Cash uses a cash icon).
-10. Monetary sensors use your Lunch Money primary currency instead of a hardcoded dollar symbol.
+10. Monetary sensors (for example balances and net income) use your Lunch Money primary currency instead of a hardcoded dollar symbol.
+11. Last Transaction is a text sensor (payee/merchant) with transaction details exposed as attributes.
 
 ## Installation
 
