@@ -76,6 +76,24 @@ def _activity_total(breakdown: Any) -> float:
         + _coerce_float(getattr(breakdown, "uncategorized_recurring", 0))
     )
 
+
+def _sanitize_manual_accounts(accounts: list[Any]) -> list[Any]:
+    """Sanitize manual account data to fix schema validation errors.
+    
+    The Lunch Money API sometimes returns accounts with name=null, which violates
+    Pydantic's string type requirement. This ensures all required fields are valid.
+    """
+    sanitized = []
+    for account in accounts:
+        if isinstance(account, dict):
+            account = dict(account)
+            if account.get("name") is None:
+                account["name"] = ""
+            sanitized.append(account)
+        else:
+            sanitized.append(account)
+    return sanitized
+
 class LunchMoneyAPI:
     def __init__(self, api_key):
         self._api_key = api_key
@@ -137,6 +155,7 @@ class LunchMoneyAPI:
         fetch_raw,
         payload_key: str,
         source_name: str,
+        sanitize_fn: Any = None,
     ) -> list[Any]:
         try:
             response = await fetch_typed()
@@ -150,7 +169,10 @@ class LunchMoneyAPI:
             raw_response = await fetch_raw()
             payload = self._decode_raw_json(raw_response)
             items = payload.get(payload_key)
-            return items if isinstance(items, list) else []
+            items = items if isinstance(items, list) else []
+            if sanitize_fn:
+                items = sanitize_fn(items)
+            return items
 
     async def _count_transactions(self, **filters: Any) -> int:
         total = 0
@@ -245,6 +267,7 @@ class LunchMoneyAPI:
             self._manual_accounts.get_all_manual_accounts_without_preload_content,
             "manual_accounts",
             "manual account",
+            sanitize_fn=_sanitize_manual_accounts,
         )
         for account in manual_accounts:
             if _field_value(account, "closed_on", None):
