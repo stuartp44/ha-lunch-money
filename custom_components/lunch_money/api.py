@@ -78,8 +78,26 @@ def _activity_total(breakdown: Any) -> float:
 
 class LunchMoneyAPI:
     def __init__(self, api_key):
-        self._configuration = lunchmoney.Configuration(access_token=api_key)
-        self._client = lunchmoney.ApiClient(self._configuration)
+        self._api_key = api_key
+        self._configuration = None
+        self._client = None
+        self._manual_accounts = None
+        self._plaid_accounts = None
+        self._me = None
+        self._transactions = None
+        self._summary = None
+
+    async def async_init(self):
+        """Initialize the API client asynchronously.
+        
+        This must be called before using the API to avoid blocking operations
+        in the event loop.
+        """
+        def _init_client():
+            self._configuration = lunchmoney.Configuration(access_token=self._api_key)
+            return lunchmoney.ApiClient(self._configuration)
+        
+        self._client = await asyncio.to_thread(_init_client)
         self._manual_accounts = ManualAccountsApi(self._client)
         self._plaid_accounts = PlaidAccountsApi(self._client)
         self._me = MeApi(self._client)

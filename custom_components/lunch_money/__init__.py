@@ -10,6 +10,7 @@ async def async_setup_entry(hass, entry):
     """Set up Lunch Money from a config entry."""
     api_key = entry.data["api_key"]
     api = LunchMoneyAPI(api_key)
+    await api.async_init()
 
     try:
         await api.async_get_balances()
